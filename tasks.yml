@@ -1,0 +1,59 @@
+- hosts: all
+  become: yes
+  become_method: su
+  vars:
+    ansible_python_interpreter: /usr/local/bin/python3.8
+    ansible_become_password: !vault |
+      $ANSIBLE_VAULT;1.1;AES256
+      34313763613264643735323333636362353434346530386363666361393336386334346161323564
+      3265666437666435646530373631343933636330303735640a306536323333656632666664346331
+      36336466623363363639346662643461326162616164323833636339383036643631623963343130
+      6265663832383231610a373966376365386633663538643330643463363136326263353839326266
+      6161
+  tasks:
+    - name: Install package
+      community.general.pkgng:
+        name: "{{ item }}"
+        state: present
+      with_list:
+        - vm-bhyve
+        - grub2-bhyve
+        - bhyve-firmware
+        - tigervnc-viewer
+
+    - name: Create ZFS
+      zfs:
+        name: zroot/vm
+        state: present
+
+    - name: Enable VM
+      community.general.sysrc:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+      with_list:
+        - { name: vm_enable, value: YES }
+        - { name: vm_dir, value: zfs:zroot/vm }
+        - { name: vm_delay, value: 5 }
+        - { name: vm_list, value: "" }
+
+    - name: stat vm file
+      stat:
+        path: /zroot/vm/.templates
+      register: st
+
+    - name: VM init
+      command: "{{ item }}"
+      with_list:
+        - vm init
+        - vm switch create public
+        - "vm switch add public {{ vm_nic }}"
+      when: not st.stat.exists
+
+    - name: Copy template file
+      command: find /usr/local/share/examples/vm-bhyve
+      register: files
+    - copy:
+        src: "{{ item }}"
+        dest: /zroot/vm/.templates/
+        remote_src: yes
+      with_items: "{{ files.stdout_lines }}"

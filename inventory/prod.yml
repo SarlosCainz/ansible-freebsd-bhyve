@@ -1,0 +1,4 @@
+all:
+  hosts:
+    r1-z:
+      vm_nic: em1

@@ -1,0 +1,4 @@
+all:
+  hosts:
+    mm2014:
+      vm_nic: ue0
